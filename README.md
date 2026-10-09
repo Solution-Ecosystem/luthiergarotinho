@@ -1,14 +1,18 @@
-# Welcome to your Lovable project
+# Luthiergarotinho
+
+chat faça um site para empresa de luthier garotinho logo anexada, a empresa é para utilização para pessoas entrar em contato e fazer um orçamento e com isso o usuário vai clicar no whatsapp e vai direto para o numero 11960219045
 
 This project was built with [Lovable](https://lovable.dev).
 
+**Live app**: https://luthiergarotinho.lovable.app
+
 ## Build with Lovable
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/a9202d8c-d750-40ab-92ea-0ea3ee1bc9e3).
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
 
 ## Development
 
@@ -20,10 +24,3 @@ cd <repository-name>
 npm i
 npm run dev
 ```
-
-## Built with
-
-- TanStack Start
-- TypeScript
-- React
-- Tailwind CSS
