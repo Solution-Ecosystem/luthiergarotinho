@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session } from "@supabase/supabase-js";
 import { OSForm } from "@/components/OSForm";
+import { AdminRequests } from "@/components/AdminRequests";
 
 export const Route = createFileRoute("/admin")({
   ssr: false,
@@ -55,7 +56,7 @@ function AdminPage() {
         </div>
       </header>
       {!session ? <Login /> : isAdmin === null ? null : isAdmin ? <AdminTabs /> : (
-        <p className="p-10 text-center">Esta conta não tem acesso de administrador.</p>
+        <p className="p-10 text-center">Seu cadastro está aguardando aprovação do administrador.</p>
       )}
     </main>
   );
@@ -93,16 +94,16 @@ function Login() {
 }
 
 function AdminTabs() {
-  const [tab, setTab] = useState<"produtos" | "os">("produtos");
+  const [tab, setTab] = useState<"produtos" | "os" | "aprov">("produtos");
   return (
     <>
-      <div className="mx-auto flex max-w-6xl gap-2 px-6 pt-6">
-        {([["produtos", "Produtos à venda"], ["os", "Ordem de Serviço"]] as const).map(([k, l]) => (
+      <div className="mx-auto flex max-w-6xl flex-wrap gap-2 px-6 pt-6">
+        {([["produtos", "Produtos à venda"], ["os", "Ordem de Serviço"], ["aprov", "Aprovação de cadastros"]] as const).map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`rounded-md border px-4 py-2 text-sm font-semibold ${tab === k ? "border-foreground bg-primary text-primary-foreground" : "bg-card"}`}>{l}</button>
         ))}
       </div>
-      {tab === "produtos" ? <Dashboard /> : <OSForm />}
+      {tab === "produtos" ? <Dashboard /> : tab === "os" ? <OSForm /> : <AdminRequests />}
     </>
   );
 }
