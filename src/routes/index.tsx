@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import logo from "@/assets/logo.png.asset.json";
+import logo from "@/assets/logo-crop.png";
 
 const PHONE = "5511960219045";
 const wa = (msg: string) => `https://wa.me/${PHONE}?text=${encodeURIComponent(msg)}`;
@@ -54,8 +54,8 @@ function Index() {
     <main className="min-h-screen bg-background font-sans text-foreground">
       <header className="bg-primary text-primary-foreground">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-6 py-4">
-          <div className="rounded-md bg-background px-2 py-1">
-            <img src={logo.url} alt="Luthier Garotinho" className="h-10 w-auto" />
+          <div className="rounded-md bg-background p-1">
+            <img src={logo} alt="Luthier Garotinho" className="h-16 w-auto" />
           </div>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="O que você está procurando?"
             className="order-3 w-full flex-1 rounded-md bg-background px-4 py-3 text-foreground outline-none placeholder:italic placeholder:text-muted-foreground md:order-none md:w-auto" />
@@ -63,6 +63,9 @@ function Index() {
             className="ml-auto inline-flex items-center gap-2 rounded-md border border-primary-foreground px-4 py-3 font-semibold transition hover:bg-primary-foreground hover:text-primary md:ml-0">
             <WaIcon className="h-5 w-5" /> Fazer orçamento
           </a>
+          <Link to="/admin" className="rounded-md bg-primary-foreground px-4 py-3 font-semibold text-primary transition hover:opacity-85">
+            Área do dono
+          </Link>
         </div>
         <nav className="border-t border-primary-foreground/15">
           <div className="mx-auto flex max-w-6xl gap-8 overflow-x-auto px-6 py-3 text-sm uppercase tracking-wider">
