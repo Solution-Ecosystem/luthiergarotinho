@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_requests: {
+        Row: {
+          created_at: string
+          email: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           active: boolean
@@ -79,6 +100,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      set_admin_request: {
+        Args: { _approve: boolean; _user: string }
+        Returns: undefined
       }
     }
     Enums: {
