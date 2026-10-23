@@ -71,6 +71,30 @@ export type Database = {
         }
         Relationships: []
       }
+      service_orders: {
+        Row: {
+          cliente: string
+          created_at: string
+          id: string
+          numero: number | null
+          pdf_path: string | null
+        }
+        Insert: {
+          cliente?: string
+          created_at?: string
+          id?: string
+          numero?: number | null
+          pdf_path?: string | null
+        }
+        Update: {
+          cliente?: string
+          created_at?: string
+          id?: string
+          numero?: number | null
+          pdf_path?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -101,6 +125,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      next_os_number: { Args: never; Returns: number }
       set_admin_request: {
         Args: { _approve: boolean; _user: string }
         Returns: undefined
