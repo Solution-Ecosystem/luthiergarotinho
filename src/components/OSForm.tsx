@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import logo from "@/assets/logo.png.asset.json";
+import { toast } from "sonner";
+import { Download, Upload, RotateCcw, Search, FileText, ExternalLink, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-
-const input = "w-full rounded-md border bg-background px-3 py-2 outline-none focus:border-foreground";
-const btn = "rounded-md bg-primary px-4 py-2 font-semibold text-primary-foreground transition hover:opacity-85 disabled:opacity-50";
+import { aBtn, aBtnGhost, aChip, aInput as input, aLabel, aPanel } from "@/lib/admin-styles";
 
 const TIPOS = ["Violão", "Guitarra", "Baixo", "Cavaquinho", "Ukulele", "Outro"];
 const SERVICOS = ["Ajuste completo", "Troca de peças", "Restauração", "Outro"];
@@ -78,12 +78,13 @@ async function montarPdf(o: OS, numero: number) {
 
 const nomeArquivo = (numero: number, nome: string) => `OS-${fmtNum(numero)}-${(nome || "cliente").replace(/\s+/g, "_")}.pdf`;
 
-export function OSForm() {
+export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
   const [o, setO] = useState<OS>(makeInitial);
   const [numero, setNumero] = useState<number | null>(null);
   const [saved, setSaved] = useState<Saved[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [q, setQ] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function refresh() {
@@ -93,6 +94,7 @@ export function OSForm() {
     ]);
     setNumero((n.data as number) ?? null);
     setSaved((list.data as Saved[]) ?? []);
+    onChanged?.();
   }
   useEffect(() => { refresh(); }, []);
 
@@ -118,9 +120,11 @@ export function OSForm() {
       await uploadPdf(doc.output("blob"), row.id);
       doc.save(nomeArquivo(row.numero, o.nome));
       setMsg(`OS Nº ${fmtNum(row.numero)} salva no site e baixada.`);
+      toast.success(`OS Nº ${fmtNum(row.numero)} salva e baixada!`);
       setO(makeInitial());
     } catch (err) {
       setMsg(`Erro: ${(err as Error).message}`);
+      toast.error((err as Error).message);
     } finally { setBusy(false); refresh(); }
   }
 
@@ -131,6 +135,7 @@ export function OSForm() {
       if (ins.error) throw ins.error;
       await uploadPdf(file, ins.data.id);
       setMsg("Arquivo enviado para o site.");
+      toast.success("PDF enviado para o site!");
     } catch (err) {
       setMsg(`Erro: ${(err as Error).message}`);
     } finally {
@@ -149,6 +154,7 @@ export function OSForm() {
     if (!confirm("Excluir esta OS do site?")) return;
     if (s.pdf_path) await supabase.storage.from("service-orders").remove([s.pdf_path]);
     await supabase.from("service_orders").delete().eq("id", s.id);
+    toast("OS excluída");
     refresh();
   }
 
@@ -156,34 +162,43 @@ export function OSForm() {
   const pills = (opts: string[], val: string, k: keyof OS) => (
     <div className="flex flex-wrap gap-2">
       {opts.map((t) => (
-        <button type="button" key={t} onClick={() => setO({ ...o, [k]: t })}
-          className={`rounded-md border px-3 py-1.5 text-sm ${val === t ? "border-foreground bg-primary text-primary-foreground" : ""}`}>{t}</button>
+        <button type="button" key={t} onClick={() => setO({ ...o, [k]: t })} className={aChip(val === t)}>{t}</button>
       ))}
     </div>
   );
-  const section = "space-y-3 rounded-lg border bg-card p-6";
-  const h = "font-display text-lg";
+  const Sec = ({ n, title, children }: { n: string; title: string; children: React.ReactNode }) => (
+    <div className={`space-y-3 ${aPanel}`}>
+      <div className="flex items-center gap-3">
+        <span className="grid h-9 w-9 shrink-0 -rotate-3 place-items-center bg-primary font-street text-primary-foreground">{n}</span>
+        <h2 className="font-street text-xl uppercase md:text-2xl">{title}</h2>
+      </div>
+      {children}
+    </div>
+  );
+  const lbl = "block space-y-1 text-sm font-semibold";
+  const valorNum = Number(o.valor.replace(/\./g, "").replace(",", ".")) || 0;
+  const tipoTxt = o.tipo === "Outro" ? o.tipoOutro || "Outro" : o.tipo;
+  const filtered = saved.filter((s) => `${s.cliente} ${fmtNum(s.numero)}`.toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 px-6 py-10">
+    <div className="mx-auto grid max-w-6xl gap-8 px-4 py-8 md:px-6 lg:grid-cols-[1fr_340px]">
       <form className="space-y-5" onSubmit={gerar}>
-        <div className={section}>
-          <h2 className={h}>Cabeçalho</h2>
+        <Sec n="01" title="Cabeçalho">
           <div className="grid gap-3 sm:grid-cols-3">
-            <label className="text-sm">Nº da OS (automático)
-              <input className={`${input} font-semibold`} value={fmtNum(numero)} readOnly />
+            <label className={lbl}><span>Nº da OS (automático)</span>
+              <input className={`${input} font-street text-lg`} value={fmtNum(numero)} readOnly />
             </label>
-            <label className="text-sm">Data de entrada<input type="date" className={input} {...f("entrada")} /></label>
-            <label className="text-sm">Data de entrega<input type="date" className={input} {...f("entrega")} /></label>
+            <label className={lbl}><span>Data de entrada</span><input type="date" className={input} {...f("entrada")} /></label>
+            <label className={lbl}><span>Data de entrega</span><input type="date" className={input} {...f("entrega")} /></label>
           </div>
-        </div>
-        <div className={section}>
-          <h2 className={h}>Dados do cliente</h2>
-          <input className={input} placeholder="Nome" required {...f("nome")} />
-          <input className={input} placeholder="WhatsApp" {...f("whatsapp")} />
-        </div>
-        <div className={section}>
-          <h2 className={h}>Instrumento</h2>
+        </Sec>
+        <Sec n="02" title="Dados do cliente">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <input className={input} placeholder="Nome" required {...f("nome")} />
+            <input className={input} placeholder="WhatsApp" inputMode="tel" {...f("whatsapp")} />
+          </div>
+        </Sec>
+        <Sec n="03" title="Instrumento">
           {pills(TIPOS, o.tipo, "tipo")}
           {o.tipo === "Outro" && <input className={input} placeholder="Qual instrumento?" {...f("tipoOutro")} />}
           <div className="grid gap-3 sm:grid-cols-3">
@@ -194,55 +209,88 @@ export function OSForm() {
           {pills(["Com capa", "Sem capa"], o.capa, "capa")}
           <input className={input} placeholder="Acessórios entregues" {...f("acessorios")} />
           <textarea className={input} rows={2} placeholder="Observações do instrumento" {...f("obs")} />
-        </div>
-        <div className={section}>
-          <h2 className={h}>Serviço a ser realizado</h2>
+        </Sec>
+        <Sec n="04" title="Serviço a ser realizado">
           <textarea className={input} rows={4} placeholder="Descreva o serviço" {...f("servico")} />
-          <div className="flex flex-wrap gap-4">
-            {SERVICOS.map((s) => (
-              <label key={s} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={o.servicos.includes(s)}
-                  onChange={(e) => setO({ ...o, servicos: e.target.checked ? [...o.servicos, s] : o.servicos.filter((x) => x !== s) })} /> {s}
-              </label>
-            ))}
+          <div className="flex flex-wrap gap-2">
+            {SERVICOS.map((s) => {
+              const on = o.servicos.includes(s);
+              return (
+                <button type="button" key={s} className={aChip(on)}
+                  onClick={() => setO({ ...o, servicos: on ? o.servicos.filter((x) => x !== s) : [...o.servicos, s] })}>
+                  {on ? "✓ " : "+ "}{s}
+                </button>
+              );
+            })}
           </div>
           {o.servicos.includes("Outro") && <input className={input} placeholder="Qual outro serviço?" {...f("servicoOutro")} />}
-        </div>
-        <div className={section}>
-          <h2 className={h}>Valor do serviço</h2>
-          <input className={input} placeholder="R$ (ex: 250,00)" inputMode="decimal" {...f("valor")} />
-        </div>
-        <div className={section}>
-          <h2 className={h}>Termos e condições</h2>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">{TERMOS.map((t) => <li key={t}>{t}</li>)}</ul>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <button className={`${btn} flex-1`} disabled={busy}>{busy ? "Aguarde..." : "Salvar no site e baixar PDF"}</button>
-          <button type="button" className="rounded-md border px-4 py-2" disabled={busy} onClick={() => fileRef.current?.click()}>
-            Enviar PDF de OS
+        </Sec>
+        <Sec n="05" title="Valor do serviço">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono font-bold">R$</span>
+            <input className={`${input} pl-10 font-street text-xl`} placeholder="250,00" inputMode="decimal" {...f("valor")} />
+          </div>
+        </Sec>
+        <Sec n="06" title="Termos e condições">
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            {TERMOS.map((t) => <li key={t} className="flex gap-2"><span className="font-bold text-foreground">✦</span>{t}</li>)}
+          </ul>
+        </Sec>
+
+        <div className="sticky bottom-3 z-20 flex flex-wrap gap-2 border-2 border-foreground bg-background p-3 shadow-hard">
+          <button className={`${aBtn} flex-1`} disabled={busy}><Download className="h-4 w-4" /> {busy ? "Aguarde..." : "Salvar no site e baixar PDF"}</button>
+          <button type="button" className={aBtnGhost} disabled={busy} onClick={() => fileRef.current?.click()}>
+            <Upload className="h-4 w-4" /> Enviar PDF de OS
           </button>
-          <button type="button" className="rounded-md border px-4 py-2" onClick={() => setO(makeInitial())}>Limpar</button>
+          <button type="button" className={aBtnGhost} title="Limpar" onClick={() => setO(makeInitial())}><RotateCcw className="h-4 w-4" /> Limpar</button>
           <input ref={fileRef} type="file" accept="application/pdf" className="hidden"
             onChange={(e) => { const file = e.target.files?.[0]; if (file) enviarArquivo(file); }} />
         </div>
         {msg && <p className="text-sm text-muted-foreground">{msg}</p>}
       </form>
 
-      <div className={section}>
-        <h2 className={h}>Ordens salvas no site ({saved.length})</h2>
-        {saved.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma OS salva ainda.</p>}
-        <div className="divide-y">
-          {saved.map((s) => (
-            <div key={s.id} className="flex items-center gap-3 py-2 text-sm">
-              <span className="w-16 font-semibold">{s.numero ? `Nº ${fmtNum(s.numero)}` : "Arquivo"}</span>
-              <span className="min-w-0 flex-1 truncate">{s.cliente || "-"}</span>
-              <span className="text-muted-foreground">{new Date(s.created_at).toLocaleDateString("pt-BR")}</span>
-              {s.pdf_path && <button type="button" className="underline" onClick={() => abrir(s)}>Abrir</button>}
-              <button type="button" className="text-destructive underline" onClick={() => excluir(s)}>Excluir</button>
-            </div>
-          ))}
+      <aside className="space-y-5 lg:sticky lg:top-40 lg:h-fit">
+        <div className="border-2 border-foreground bg-primary p-5 text-primary-foreground shadow-hard">
+          <p className="font-mono text-xs uppercase tracking-widest opacity-70">// Prévia da OS</p>
+          <p className="mt-2 font-street text-4xl leading-none">Nº {fmtNum(numero)}</p>
+          <dl className="mt-4 space-y-2 text-sm">
+            <div className="flex justify-between gap-2"><dt className="opacity-70">Cliente</dt><dd className="truncate font-semibold">{o.nome || "—"}</dd></div>
+            <div className="flex justify-between gap-2"><dt className="opacity-70">Instrumento</dt><dd className="truncate font-semibold">{[tipoTxt, o.marca].filter(Boolean).join(" · ")}</dd></div>
+            <div className="flex justify-between gap-2"><dt className="opacity-70">Entrega</dt><dd className="font-semibold">{o.entrega ? br(o.entrega) : "—"}</dd></div>
+            <div className="flex justify-between gap-2"><dt className="opacity-70">Serviços</dt><dd className="truncate font-semibold">{o.servicos.length || "—"}</dd></div>
+          </dl>
+          <p className="mt-4 border-t-2 border-primary-foreground pt-3 font-street text-3xl">
+            {valorNum.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+          </p>
         </div>
-      </div>
+
+        <div className={aPanel}>
+          <div className="flex items-center justify-between">
+            <h2 className="font-street text-xl uppercase">Ordens salvas</h2>
+            <span className="border-2 border-foreground px-2 font-mono text-xs font-bold">{saved.length}</span>
+          </div>
+          <div className="relative mt-3">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+            <input className={`${input} pl-9`} placeholder="Buscar cliente ou nº" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          {filtered.length === 0 && <p className="mt-4 text-sm text-muted-foreground">Nenhuma OS encontrada.</p>}
+          <div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto pr-1">
+            {filtered.map((s) => (
+              <div key={s.id} className="flex items-center gap-3 border-2 border-foreground bg-background p-2 text-sm transition hover:shadow-hard-sm">
+                <div className="grid h-10 w-10 shrink-0 place-items-center bg-primary text-primary-foreground">
+                  {s.numero ? <span className="font-street text-xs">{fmtNum(s.numero)}</span> : <FileText className="h-4 w-4" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold">{s.cliente || "-"}</p>
+                  <p className={aLabel}>{new Date(s.created_at).toLocaleDateString("pt-BR")}</p>
+                </div>
+                {s.pdf_path && <button type="button" title="Abrir" className="p-1.5 transition hover:bg-primary hover:text-primary-foreground" onClick={() => abrir(s)}><ExternalLink className="h-4 w-4" /></button>}
+                <button type="button" title="Excluir" className="p-1.5 text-destructive transition hover:bg-destructive hover:text-destructive-foreground" onClick={() => excluir(s)}><Trash2 className="h-4 w-4" /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </aside>
     </div>
   );
 }
