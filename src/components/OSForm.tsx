@@ -23,7 +23,22 @@ const makeInitial = () => ({
   valor: "",
 });
 type OS = ReturnType<typeof makeInitial>;
-type Saved = { id: string; numero: number | null; cliente: string; pdf_path: string | null; created_at: string };
+type Saved = { id: string; numero: number | null; cliente: string; pdf_path: string | null; created_at: string; dados: Partial<OS> | null };
+
+const parseValor = (v: string) => Number(v.replace(/\./g, "").replace(",", ".")) || 0;
+
+// Defined outside OSForm on purpose: declaring it inside made React remount every section on each keystroke, so inputs lost focus.
+function Sec({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
+  return (
+    <div className={`space-y-3 ${aPanel}`}>
+      <div className="flex items-center gap-3">
+        <span className="grid h-9 w-9 shrink-0 -rotate-3 place-items-center bg-primary font-street text-primary-foreground">{n}</span>
+        <h2 className="font-street text-xl uppercase md:text-2xl">{title}</h2>
+      </div>
+      {children}
+    </div>
+  );
+}
 
 const br = (d: string) => (d ? d.split("-").reverse().join("/") : "____/____/______");
 const fmtNum = (n: number | null) => (n ? String(n).padStart(4, "0") : "—");
@@ -137,7 +152,10 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
       let row: { id: string; numero: number } | null = null;
       for (let i = 0; i < 3 && !row; i++) {
         const { data: n } = await supabase.rpc("next_os_number");
-        const ins = await supabase.from("service_orders").insert({ numero: n as number, cliente: o.nome }).select("id, numero").single();
+        const ins = await supabase.from("service_orders").insert({
+          numero: n as number, cliente: o.nome, whatsapp: o.whatsapp || null, valor: parseValor(o.valor),
+          data_entrada: o.entrada || null, data_entrega: o.entrega || null, dados: o,
+        }).select("id, numero").single();
         if (!ins.error) row = ins.data as { id: string; numero: number };
         else if (ins.error.code !== "23505") throw ins.error;
       }
@@ -182,6 +200,20 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
     }
   }
 
+  // Orders without a stored PDF are rebuilt from the data saved in the database, then stored so next time it's a direct download.
+  async function baixarGerado(s: Saved) {
+    setBusy(true);
+    try {
+      const dados: OS = { ...makeInitial(), entrada: s.created_at.slice(0, 10), ...(s.dados ?? {}), nome: s.dados?.nome || s.cliente };
+      const doc = await montarPdf(dados, s.numero ?? 0);
+      doc.save(arquivoSalvo(s));
+      try { await uploadPdf(doc.output("blob"), s.id); } catch { /* download already happened */ }
+      if (!s.dados) toast.message("Esta OS foi criada antes do site guardar os detalhes, então o PDF saiu só com nome e número.");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally { setBusy(false); refresh(); }
+  }
+
   async function excluir(s: Saved) {
     if (!confirm("Excluir esta OS do site?")) return;
     if (s.pdf_path) await supabase.storage.from("service-orders").remove([s.pdf_path]);
@@ -198,17 +230,8 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
       ))}
     </div>
   );
-  const Sec = ({ n, title, children }: { n: string; title: string; children: React.ReactNode }) => (
-    <div className={`space-y-3 ${aPanel}`}>
-      <div className="flex items-center gap-3">
-        <span className="grid h-9 w-9 shrink-0 -rotate-3 place-items-center bg-primary font-street text-primary-foreground">{n}</span>
-        <h2 className="font-street text-xl uppercase md:text-2xl">{title}</h2>
-      </div>
-      {children}
-    </div>
-  );
   const lbl = "block space-y-1 text-sm font-semibold";
-  const valorNum = Number(o.valor.replace(/\./g, "").replace(",", ".")) || 0;
+  const valorNum = parseValor(o.valor);
   const tipoTxt = o.tipo === "Outro" ? o.tipoOutro || "Outro" : o.tipo;
   const filtered = saved.filter((s) => `${s.cliente} ${fmtNum(s.numero)}`.toLowerCase().includes(q.toLowerCase()));
 
@@ -328,11 +351,15 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
                     </span>
                   ))}
                   {!s.pdf_path && (
-                    <button type="button" disabled={busy} title="Esta OS ficou sem PDF. Envie o arquivo para poder baixar depois."
-                      onClick={() => { attachTo.current = s.id; fileRef.current?.click(); }}
-                      className="inline-flex items-center gap-1.5 border-2 border-dashed border-foreground px-2.5 py-1.5 font-street text-xs uppercase tracking-wider transition hover:-translate-y-0.5 hover:shadow-hard-sm disabled:opacity-50">
-                      <Upload className="h-4 w-4" /> Anexar PDF
-                    </button>
+                    <>
+                      <button type="button" disabled={busy} onClick={() => baixarGerado(s)}
+                        className="inline-flex items-center gap-1.5 border-2 border-foreground bg-primary px-2.5 py-1.5 font-street text-xs uppercase tracking-wider text-primary-foreground transition hover:-translate-y-0.5 hover:shadow-hard-sm disabled:opacity-50">
+                        <Download className="h-4 w-4" /> Baixar
+                      </button>
+                      <button type="button" disabled={busy} title="Anexar PDF"
+                        onClick={() => { attachTo.current = s.id; fileRef.current?.click(); }}
+                        className="p-1.5 transition hover:bg-primary hover:text-primary-foreground disabled:opacity-50"><Upload className="h-4 w-4" /></button>
+                    </>
                   )}
                   {s.pdf_path && links[s.id]?.view && (
                     <a href={links[s.id]?.view} target="_blank" rel="noopener noreferrer" title="Abrir"
