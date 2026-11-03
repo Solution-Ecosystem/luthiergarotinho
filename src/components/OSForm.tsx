@@ -123,7 +123,7 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
       supabase.from("service_orders").select("*").order("created_at", { ascending: false }),
     ]);
     setNumero((n.data as number) ?? null);
-    const rows = (list.data as Saved[]) ?? [];
+    const rows = (list.data as unknown as Saved[]) ?? [];
     setSaved(rows);
     onChanged?.();
     // Links are prepared ahead so the download button works with a single tap (also on iPhone).
