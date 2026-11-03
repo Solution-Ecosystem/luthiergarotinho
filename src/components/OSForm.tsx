@@ -100,6 +100,7 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
   const [msg, setMsg] = useState("");
   const [q, setQ] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const attachTo = useRef<string | null>(null);
 
   async function refresh() {
     const [n, list] = await Promise.all([
@@ -142,8 +143,14 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
       }
       if (!row) throw new Error("Não foi possível reservar o número da OS.");
       const doc = await montarPdf(o, row.numero);
-      await uploadPdf(doc.output("blob"), row.id);
       doc.save(nomeArquivo(row.numero, o.nome));
+      try {
+        await uploadPdf(doc.output("blob"), row.id);
+      } catch (upErr) {
+        setMsg(`OS Nº ${fmtNum(row.numero)} baixada, mas não foi salva no site. Use "Anexar PDF" na lista.`);
+        toast.error(`OS baixada, mas não salvou no site: ${(upErr as Error).message}`);
+        return;
+      }
       setMsg(`OS Nº ${fmtNum(row.numero)} salva no site e baixada.`);
       toast.success(`OS Nº ${fmtNum(row.numero)} salva e baixada!`);
       setO(makeInitial());
@@ -155,10 +162,16 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
 
   async function enviarArquivo(file: File) {
     setBusy(true); setMsg("");
+    const target = attachTo.current;
+    attachTo.current = null;
     try {
-      const ins = await supabase.from("service_orders").insert({ cliente: file.name.replace(/\.pdf$/i, "") }).select("id").single();
-      if (ins.error) throw ins.error;
-      await uploadPdf(file, ins.data.id);
+      let id = target;
+      if (!id) {
+        const ins = await supabase.from("service_orders").insert({ cliente: file.name.replace(/\.pdf$/i, "") }).select("id").single();
+        if (ins.error) throw ins.error;
+        id = ins.data.id;
+      }
+      await uploadPdf(file, id);
       setMsg("Arquivo enviado para o site.");
       toast.success("PDF enviado para o site!");
     } catch (err) {
@@ -258,7 +271,7 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
 
         <div className="sticky bottom-3 z-20 flex flex-wrap gap-2 border-2 border-foreground bg-background p-3 shadow-hard">
           <button className={`${aBtn} flex-1`} disabled={busy}><Download className="h-4 w-4" /> {busy ? "Aguarde..." : "Salvar no site e baixar PDF"}</button>
-          <button type="button" className={aBtnGhost} disabled={busy} onClick={() => fileRef.current?.click()}>
+          <button type="button" className={aBtnGhost} disabled={busy} onClick={() => { attachTo.current = null; fileRef.current?.click(); }}>
             <Upload className="h-4 w-4" /> Enviar PDF de OS
           </button>
           <button type="button" className={aBtnGhost} title="Limpar" onClick={() => setO(makeInitial())}><RotateCcw className="h-4 w-4" /> Limpar</button>
@@ -314,6 +327,13 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
                       <Download className="h-4 w-4" /> ...
                     </span>
                   ))}
+                  {!s.pdf_path && (
+                    <button type="button" disabled={busy} title="Esta OS ficou sem PDF. Envie o arquivo para poder baixar depois."
+                      onClick={() => { attachTo.current = s.id; fileRef.current?.click(); }}
+                      className="inline-flex items-center gap-1.5 border-2 border-dashed border-foreground px-2.5 py-1.5 font-street text-xs uppercase tracking-wider transition hover:-translate-y-0.5 hover:shadow-hard-sm disabled:opacity-50">
+                      <Upload className="h-4 w-4" /> Anexar PDF
+                    </button>
+                  )}
                   {s.pdf_path && links[s.id]?.view && (
                     <a href={links[s.id].view} target="_blank" rel="noopener noreferrer" title="Abrir"
                       className="p-1.5 transition hover:bg-primary hover:text-primary-foreground"><ExternalLink className="h-4 w-4" /></a>
