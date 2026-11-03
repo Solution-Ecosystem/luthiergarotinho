@@ -158,7 +158,7 @@ function AdminTabs({ email }: { email: string }) {
     { k: "os", label: "OS emitidas", value: stats?.os, icon: FileText },
     { k: "aprov", label: "Cadastros pendentes", value: stats?.pendentes, icon: UserCheck },
   ];
-  const tabs: { k: Tab; label: string; icon: typeof Package; badge?: number }[] = [
+  const tabs: { k: Tab; label: string; icon: typeof Package; badge?: number | undefined }[] = [
     { k: "produtos", label: "Produtos à venda", icon: Package },
     { k: "os", label: "Ordem de Serviço", icon: FileText },
     { k: "aprov", label: "Aprovação de cadastros", icon: UserCheck, badge: stats?.pendentes },
