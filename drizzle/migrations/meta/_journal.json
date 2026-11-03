@@ -22,6 +22,13 @@
       "when": 1792723658219,
       "tag": "0002_service_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793741307693,
+      "tag": "0003_service_orders_dados",
+      "breakpoints": true
     }
   ]
 }

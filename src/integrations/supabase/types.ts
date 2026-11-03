@@ -75,23 +75,38 @@ export type Database = {
         Row: {
           cliente: string
           created_at: string
+          dados: Json | null
+          data_entrada: string | null
+          data_entrega: string | null
           id: string
           numero: number | null
           pdf_path: string | null
+          valor: number | null
+          whatsapp: string | null
         }
         Insert: {
           cliente?: string
           created_at?: string
+          dados?: Json | null
+          data_entrada?: string | null
+          data_entrega?: string | null
           id?: string
           numero?: number | null
           pdf_path?: string | null
+          valor?: number | null
+          whatsapp?: string | null
         }
         Update: {
           cliente?: string
           created_at?: string
+          dados?: Json | null
+          data_entrada?: string | null
+          data_entrega?: string | null
           id?: string
           numero?: number | null
           pdf_path?: string | null
+          valor?: number | null
+          whatsapp?: string | null
         }
         Relationships: []
       }
