@@ -318,7 +318,7 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
                 </div>
                 <div className="flex items-center gap-1">
                   {s.pdf_path && (links[s.id]?.dl ? (
-                    <a href={links[s.id].dl} download={arquivoSalvo(s)}
+                    <a href={links[s.id]?.dl} download={arquivoSalvo(s)}
                       className="inline-flex items-center gap-1.5 border-2 border-foreground bg-primary px-2.5 py-1.5 font-street text-xs uppercase tracking-wider text-primary-foreground transition hover:-translate-y-0.5 hover:shadow-hard-sm">
                       <Download className="h-4 w-4" /> Baixar
                     </a>
@@ -335,7 +335,7 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
                     </button>
                   )}
                   {s.pdf_path && links[s.id]?.view && (
-                    <a href={links[s.id].view} target="_blank" rel="noopener noreferrer" title="Abrir"
+                    <a href={links[s.id]?.view} target="_blank" rel="noopener noreferrer" title="Abrir"
                       className="p-1.5 transition hover:bg-primary hover:text-primary-foreground"><ExternalLink className="h-4 w-4" /></a>
                   )}
                   <button type="button" title="Excluir" className="p-1.5 text-destructive transition hover:bg-destructive hover:text-destructive-foreground" onClick={() => excluir(s)}><Trash2 className="h-4 w-4" /></button>
