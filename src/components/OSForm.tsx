@@ -77,11 +77,15 @@ async function montarPdf(o: OS, numero: number) {
 }
 
 const nomeArquivo = (numero: number, nome: string) => `OS-${fmtNum(numero)}-${(nome || "cliente").replace(/\s+/g, "_")}.pdf`;
+const arquivoSalvo = (s: Saved) =>
+  s.numero ? nomeArquivo(s.numero, s.cliente) : `${(s.cliente || "OS").replace(/\s+/g, "_")}.pdf`;
+const LINK_TTL = 60 * 60 * 12;
 
 export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
   const [o, setO] = useState<OS>(makeInitial);
   const [numero, setNumero] = useState<number | null>(null);
   const [saved, setSaved] = useState<Saved[]>([]);
+  const [links, setLinks] = useState<Record<string, { view: string; dl: string }>>({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [q, setQ] = useState("");
@@ -93,8 +97,19 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
       supabase.from("service_orders").select("*").order("created_at", { ascending: false }),
     ]);
     setNumero((n.data as number) ?? null);
-    setSaved((list.data as Saved[]) ?? []);
+    const rows = (list.data as Saved[]) ?? [];
+    setSaved(rows);
     onChanged?.();
+    // Links are prepared ahead so the download button works with a single tap (also on iPhone).
+    const pairs = await Promise.all(rows.filter((s) => s.pdf_path).map(async (s) => {
+      const bucket = supabase.storage.from("service-orders");
+      const [view, dl] = await Promise.all([
+        bucket.createSignedUrl(s.pdf_path!, LINK_TTL),
+        bucket.createSignedUrl(s.pdf_path!, LINK_TTL, { download: arquivoSalvo(s) }),
+      ]);
+      return [s.id, { view: view.data?.signedUrl ?? "", dl: dl.data?.signedUrl ?? "" }] as const;
+    }));
+    setLinks(Object.fromEntries(pairs));
   }
   useEffect(() => { refresh(); }, []);
 
@@ -142,12 +157,6 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
       setBusy(false); refresh();
       if (fileRef.current) fileRef.current.value = "";
     }
-  }
-
-  async function abrir(s: Saved) {
-    if (!s.pdf_path) return;
-    const { data } = await supabase.storage.from("service-orders").createSignedUrl(s.pdf_path, 60);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
   }
 
   async function excluir(s: Saved) {
@@ -276,7 +285,7 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
           {filtered.length === 0 && <p className="mt-4 text-sm text-muted-foreground">Nenhuma OS encontrada.</p>}
           <div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto pr-1">
             {filtered.map((s) => (
-              <div key={s.id} className="flex items-center gap-3 border-2 border-foreground bg-background p-2 text-sm transition hover:shadow-hard-sm">
+              <div key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-2 border-foreground bg-background p-2 text-sm transition hover:shadow-hard-sm">
                 <div className="grid h-10 w-10 shrink-0 place-items-center bg-primary text-primary-foreground">
                   {s.numero ? <span className="font-street text-xs">{fmtNum(s.numero)}</span> : <FileText className="h-4 w-4" />}
                 </div>
@@ -284,8 +293,23 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
                   <p className="truncate font-semibold">{s.cliente || "-"}</p>
                   <p className={aLabel}>{new Date(s.created_at).toLocaleDateString("pt-BR")}</p>
                 </div>
-                {s.pdf_path && <button type="button" title="Abrir" className="p-1.5 transition hover:bg-primary hover:text-primary-foreground" onClick={() => abrir(s)}><ExternalLink className="h-4 w-4" /></button>}
-                <button type="button" title="Excluir" className="p-1.5 text-destructive transition hover:bg-destructive hover:text-destructive-foreground" onClick={() => excluir(s)}><Trash2 className="h-4 w-4" /></button>
+                <div className="flex items-center gap-1">
+                  {s.pdf_path && (links[s.id]?.dl ? (
+                    <a href={links[s.id].dl} download={arquivoSalvo(s)}
+                      className="inline-flex items-center gap-1.5 border-2 border-foreground bg-primary px-2.5 py-1.5 font-street text-xs uppercase tracking-wider text-primary-foreground transition hover:-translate-y-0.5 hover:shadow-hard-sm">
+                      <Download className="h-4 w-4" /> Baixar
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 border-2 border-foreground px-2.5 py-1.5 font-street text-xs uppercase opacity-50">
+                      <Download className="h-4 w-4" /> ...
+                    </span>
+                  ))}
+                  {s.pdf_path && links[s.id]?.view && (
+                    <a href={links[s.id].view} target="_blank" rel="noopener noreferrer" title="Abrir"
+                      className="p-1.5 transition hover:bg-primary hover:text-primary-foreground"><ExternalLink className="h-4 w-4" /></a>
+                  )}
+                  <button type="button" title="Excluir" className="p-1.5 text-destructive transition hover:bg-destructive hover:text-destructive-foreground" onClick={() => excluir(s)}><Trash2 className="h-4 w-4" /></button>
+                </div>
               </div>
             ))}
           </div>
