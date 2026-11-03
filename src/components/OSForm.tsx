@@ -77,11 +77,15 @@ async function montarPdf(o: OS, numero: number) {
 }
 
 const nomeArquivo = (numero: number, nome: string) => `OS-${fmtNum(numero)}-${(nome || "cliente").replace(/\s+/g, "_")}.pdf`;
+const arquivoSalvo = (s: Saved) =>
+  s.numero ? nomeArquivo(s.numero, s.cliente) : `${(s.cliente || "OS").replace(/\s+/g, "_")}.pdf`;
+const LINK_TTL = 60 * 60 * 12;
 
 export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
   const [o, setO] = useState<OS>(makeInitial);
   const [numero, setNumero] = useState<number | null>(null);
   const [saved, setSaved] = useState<Saved[]>([]);
+  const [links, setLinks] = useState<Record<string, { view: string; dl: string }>>({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [q, setQ] = useState("");
@@ -93,8 +97,19 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
       supabase.from("service_orders").select("*").order("created_at", { ascending: false }),
     ]);
     setNumero((n.data as number) ?? null);
-    setSaved((list.data as Saved[]) ?? []);
+    const rows = (list.data as Saved[]) ?? [];
+    setSaved(rows);
     onChanged?.();
+    // Links are prepared ahead so the download button works with a single tap (also on iPhone).
+    const pairs = await Promise.all(rows.filter((s) => s.pdf_path).map(async (s) => {
+      const bucket = supabase.storage.from("service-orders");
+      const [view, dl] = await Promise.all([
+        bucket.createSignedUrl(s.pdf_path!, LINK_TTL),
+        bucket.createSignedUrl(s.pdf_path!, LINK_TTL, { download: arquivoSalvo(s) }),
+      ]);
+      return [s.id, { view: view.data?.signedUrl ?? "", dl: dl.data?.signedUrl ?? "" }] as const;
+    }));
+    setLinks(Object.fromEntries(pairs));
   }
   useEffect(() => { refresh(); }, []);
 
