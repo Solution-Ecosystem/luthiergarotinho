@@ -28,20 +28,30 @@ type Saved = { id: string; numero: number | null; cliente: string; pdf_path: str
 const br = (d: string) => (d ? d.split("-").reverse().join("/") : "____/____/______");
 const fmtNum = (n: number | null) => (n ? String(n).padStart(4, "0") : "—");
 
-async function toDataUrl(url: string) {
-  const blob = await (await fetch(url)).blob();
-  return new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.readAsDataURL(blob); });
+// Shrinks the logo to a light JPEG on white so the PDF stays small (the original PNG made ~5 MB files that failed to upload).
+async function logoJpeg(url: string) {
+  const img = new Image();
+  img.src = url;
+  await img.decode();
+  const scale = Math.min(1, 900 / img.naturalWidth);
+  const c = document.createElement("canvas");
+  c.width = Math.round(img.naturalWidth * scale);
+  c.height = Math.round(img.naturalHeight * scale);
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  return { data: c.toDataURL("image/jpeg", 0.85), width: c.width, height: c.height };
 }
 
 async function montarPdf(o: OS, numero: number) {
   const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
   const W = 210, M = 14;
   try {
-    const img = await toDataUrl(logo.url);
-    const p = doc.getImageProperties(img);
+    const p = await logoJpeg(logo.url);
     const h = 38, w = (p.width / p.height) * h;
-    doc.addImage(img, M, 10, Math.min(w, 110), Math.min(w, 110) === w ? h : (110 * p.height) / p.width);
+    doc.addImage(p.data, "JPEG", M, 10, Math.min(w, 110), Math.min(w, 110) === w ? h : (110 * p.height) / p.width);
   } catch { doc.setFont("helvetica", "bold").setFontSize(22).text("LUTHIER GAROTINHO", M, 28); }
   doc.setLineWidth(0.4).line(135, 10, 135, 50);
   doc.setFont("helvetica", "bold").setFontSize(13).text("ORDEM DE SERVIÇO", 140, 16);
