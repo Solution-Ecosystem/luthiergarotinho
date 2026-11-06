@@ -104,7 +104,8 @@ async function montarPdf(o: OS, numero: number) {
 const nomeArquivo = (numero: number, nome: string) => `OS-${fmtNum(numero)}-${(nome || "cliente").replace(/\s+/g, "_")}.pdf`;
 const arquivoSalvo = (s: Saved) =>
   s.numero ? nomeArquivo(s.numero, s.cliente) : `${(s.cliente || "OS").replace(/\s+/g, "_")}.pdf`;
-const LINK_TTL = 60 * 60 * 12;
+// Long-lived links so a link sent to a client keeps working; files themselves are never removed except by explicit delete.
+const LINK_TTL = 60 * 60 * 24 * 365 * 10;
 
 export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
   const [o, setO] = useState<OS>(makeInitial);
@@ -214,8 +215,18 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
     } finally { setBusy(false); refresh(); }
   }
 
+  async function previa() {
+    const w = window.open("", "_blank");
+    try {
+      const doc = await montarPdf(o, numero ?? 0);
+      const url = URL.createObjectURL(doc.output("blob"));
+      if (w) w.location.href = url; else window.location.href = url;
+    } catch (err) { w?.close(); toast.error((err as Error).message); }
+  }
+
   async function excluir(s: Saved) {
-    if (!confirm("Excluir esta OS do site?")) return;
+    const conf = prompt(`Os arquivos ficam salvos para sempre. Para excluir mesmo assim, digite EXCLUIR:`);
+    if (conf?.trim().toUpperCase() !== "EXCLUIR") return;
     if (s.pdf_path) await supabase.storage.from("service-orders").remove([s.pdf_path]);
     await supabase.from("service_orders").delete().eq("id", s.id);
     toast("OS excluída");
@@ -294,6 +305,9 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
 
         <div className="sticky bottom-3 z-20 flex flex-wrap gap-2 border-2 border-foreground bg-background p-3 shadow-hard">
           <button className={`${aBtn} flex-1`} disabled={busy}><Download className="h-4 w-4" /> {busy ? "Aguarde..." : "Salvar no site e baixar PDF"}</button>
+          <button type="button" className={aBtnGhost} disabled={busy} onClick={previa}>
+            <FileText className="h-4 w-4" /> Ver exemplo da OS
+          </button>
           <button type="button" className={aBtnGhost} disabled={busy} onClick={() => { attachTo.current = null; fileRef.current?.click(); }}>
             <Upload className="h-4 w-4" /> Enviar PDF de OS
           </button>
