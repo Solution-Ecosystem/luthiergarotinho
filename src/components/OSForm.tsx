@@ -67,7 +67,7 @@ export async function montarPdf(o: OS, numero: number) {
   };
 
   t(fmtNum(numero), 165, 31, 13, true);
-  if (o.entrada) { const [a, m, d] = o.entrada.split("-"); t(d, 156, 48.5, 10, true); t(m, 168, 48.5, 10, true); t(a, 182, 48.5, 10, true); }
+  if (o.entrada) { const [a = "", m = "", d = ""] = o.entrada.split("-"); t(d, 156, 48.5, 10, true); t(m, 168, 48.5, 10, true); t(a, 182, 48.5, 10, true); }
   if (o.entrega) t(`ENTREGA: ${br(o.entrega)}`, 153, 55, 8, true);
 
   t(o.nome, 30, 77);
