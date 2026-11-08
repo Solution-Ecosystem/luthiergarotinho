@@ -304,7 +304,7 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
         </Sec>
 
         <div className="sticky bottom-3 z-20 flex flex-wrap gap-2 border-2 border-foreground bg-background p-3 shadow-hard">
-          <button className={`${aBtn} flex-1`} disabled={busy}><Download className="h-4 w-4" /> {busy ? "Aguarde..." : "Salvar no site e baixar PDF"}</button>
+          <button className={`${aBtn} flex-1`} disabled={busy}><Download className="h-4 w-4" /> {busy ? "Salvando..." : "Salvar"}</button>
           <button type="button" className={aBtnGhost} disabled={busy} onClick={previa}>
             <FileText className="h-4 w-4" /> Ver exemplo da OS
           </button>
