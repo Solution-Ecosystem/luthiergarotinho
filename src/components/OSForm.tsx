@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import logo from "@/assets/logo.png.asset.json";
+import modelo from "@/assets/os-modelo.jpg.asset.json";
 import { toast } from "sonner";
 import { Download, Upload, RotateCcw, Search, FileText, ExternalLink, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,61 +43,54 @@ function Sec({ n, title, children }: { n: string; title: string; children: React
 const br = (d: string) => (d ? d.split("-").reverse().join("/") : "____/____/______");
 const fmtNum = (n: number | null) => (n ? String(n).padStart(4, "0") : "—");
 
-// Shrinks the logo to a light JPEG on white so the PDF stays small (the original PNG made ~5 MB files that failed to upload).
-async function logoJpeg(url: string) {
+async function carregarModelo(url: string) {
   const img = new Image();
   img.src = url;
   await img.decode();
-  const scale = Math.min(1, 900 / img.naturalWidth);
   const c = document.createElement("canvas");
-  c.width = Math.round(img.naturalWidth * scale);
-  c.height = Math.round(img.naturalHeight * scale);
-  const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, c.width, c.height);
-  ctx.drawImage(img, 0, 0, c.width, c.height);
-  return { data: c.toDataURL("image/jpeg", 0.85), width: c.width, height: c.height };
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  c.getContext("2d")!.drawImage(img, 0, 0);
+  return c.toDataURL("image/jpeg", 0.85);
 }
 
-async function montarPdf(o: OS, numero: number) {
+// The owner's uploaded OS model is the PDF background; form data is written on top at its fields (coordinates in mm on A4).
+export async function montarPdf(o: OS, numero: number) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
-  const W = 210, M = 14;
-  try {
-    const p = await logoJpeg(logo.url);
-    const h = 38, w = (p.width / p.height) * h;
-    doc.addImage(p.data, "JPEG", M, 10, Math.min(w, 110), Math.min(w, 110) === w ? h : (110 * p.height) / p.width);
-  } catch { doc.setFont("helvetica", "bold").setFontSize(22).text("LUTHIER GAROTINHO", M, 28); }
-  doc.setLineWidth(0.4).line(135, 10, 135, 50);
-  doc.setFont("helvetica", "bold").setFontSize(13).text("ORDEM DE SERVIÇO", 140, 16);
-  doc.setFontSize(10).text(`Nº ${fmtNum(numero)}`, 140, 25);
-  doc.setFont("helvetica", "normal").setFontSize(9);
-  doc.text(`Data de entrada: ${br(o.entrada)}`, 140, 35);
-  doc.text(`Data de entrega: ${br(o.entrega)}`, 140, 43);
-
-  let y = 56;
-  const box = (title: string, lines: string[]) => {
-    doc.setFontSize(9);
-    const wrapped = lines.flatMap((l) => doc.splitTextToSize(l, W - 2 * M - 8) as string[]);
-    const h = 12 + wrapped.length * 5.2;
-    doc.roundedRect(M, y, W - 2 * M, h, 2, 2);
-    doc.setFont("helvetica", "bold").setFontSize(11).text(title, M + 4, y + 7);
-    doc.setFont("helvetica", "normal").setFontSize(9);
-    wrapped.forEach((l, i) => doc.text(l, M + 4, y + 13 + i * 5.2));
-    y += h + 4;
+  doc.addImage(await carregarModelo(modelo.url), "JPEG", 0, 0, 210, 297);
+  const t = (txt: string, x: number, y: number, size = 10, bold = false) =>
+    doc.setFont("helvetica", bold ? "bold" : "normal").setFontSize(size).text(txt || "", x, y);
+  const X = (on: boolean, x: number, y: number) => { if (on) t("X", x + 1, y + 0.8, 11, true); };
+  const lines = (txt: string, x: number, y: number, w: number, step: number, max: number, size = 9) => {
+    doc.setFont("helvetica", "normal").setFontSize(size);
+    (doc.splitTextToSize(txt || "", w) as string[]).slice(0, max).forEach((l, i) => doc.text(l, x, y + i * step));
   };
-  box("DADOS DO CLIENTE", [`Nome: ${o.nome}`, `WhatsApp: ${o.whatsapp}`]);
-  box("INSTRUMENTO", [
-    `Tipo: ${o.tipo === "Outro" ? o.tipoOutro || "Outro" : o.tipo}     ${o.capa}`,
-    `Marca: ${o.marca}     Modelo: ${o.modelo}     Cor: ${o.cor}`,
-    `Acessórios entregues: ${o.acessorios || "-"}`, `Observações: ${o.obs || "-"}`,
-  ]);
-  const sv = o.servicos.map((s) => (s === "Outro" && o.servicoOutro ? `Outro: ${o.servicoOutro}` : s));
-  box("SERVIÇO A SER REALIZADO", [...(o.servico ? o.servico.split("\n") : ["-"]), `Tipo: ${sv.join(", ") || "-"}`]);
-  const valor = Number(o.valor.replace(/\./g, "").replace(",", ".")) || 0;
-  box("VALOR DO SERVIÇO", [`R$ ${valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`]);
-  box("TERMOS E CONDIÇÕES", TERMOS.map((t) => `• ${t}`));
-  doc.setFont("helvetica", "italic").setFontSize(10).text("“Cada instrumento tem uma história. A gente cuida da sua.”", W / 2, y + 6, { align: "center" });
+
+  t(fmtNum(numero), 165, 31, 13, true);
+  if (o.entrada) { const [a, m, d] = o.entrada.split("-"); t(d, 156, 48.5, 10, true); t(m, 168, 48.5, 10, true); t(a, 182, 48.5, 10, true); }
+  if (o.entrega) t(`ENTREGA: ${br(o.entrega)}`, 153, 55, 8, true);
+
+  t(o.nome, 30, 77);
+  t(o.whatsapp, 47, 85.5);
+
+  const tipos: Record<string, [number, number]> = {
+    "Violão": [31.6, 122], "Guitarra": [53.2, 122], "Baixo": [74.6, 122], "Cavaquinho": [91.6, 122],
+    "Ukulele": [31.6, 128.6], "Outro": [53.2, 128.6],
+  };
+  const pos = tipos[o.tipo]; if (pos) X(true, pos[0], pos[1]);
+  if (o.tipo === "Outro") t(o.tipoOutro, 69, 128);
+  t(o.marca, 33, 139.5); t(o.modelo, 36, 148); t(o.cor, 29, 157);
+  X(o.capa === "Com capa", 131.2, 112); X(o.capa === "Sem capa", 131.2, 118.2);
+  lines(o.acessorios, 129, 132, 64, 6.6, 3);
+  lines(o.obs, 129, 155, 64, 6.6, 3);
+
+  lines(o.servico, 18, 184.5, 116, 7.1, 5);
+  const sv = (s: string) => o.servicos.includes(s);
+  X(sv("Ajuste completo"), 18.7, 218.6); X(sv("Troca de peças"), 62.7, 218.6);
+  X(sv("Restauração"), 103.7, 218.6); X(sv("Outro"), 140.3, 218.6);
+  if (sv("Outro")) t(o.servicoOutro, 158, 219, 8);
+  const valor = parseValor(o.valor);
+  t(valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 }), 166, 184.5, 12, true);
   return doc;
 }
 
@@ -215,15 +208,6 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
     } finally { setBusy(false); refresh(); }
   }
 
-  async function previa() {
-    const w = window.open("", "_blank");
-    try {
-      const doc = await montarPdf(o, numero ?? 0);
-      const url = URL.createObjectURL(doc.output("blob"));
-      if (w) w.location.href = url; else window.location.href = url;
-    } catch (err) { w?.close(); toast.error((err as Error).message); }
-  }
-
   async function excluir(s: Saved) {
     const conf = prompt(`Os arquivos ficam salvos para sempre. Para excluir mesmo assim, digite EXCLUIR:`);
     if (conf?.trim().toUpperCase() !== "EXCLUIR") return;
@@ -305,12 +289,6 @@ export function OSForm({ onChanged }: { onChanged?: () => void } = {}) {
 
         <div className="sticky bottom-3 z-20 flex flex-wrap gap-2 border-2 border-foreground bg-background p-3 shadow-hard">
           <button className={`${aBtn} flex-1`} disabled={busy}><Download className="h-4 w-4" /> {busy ? "Salvando..." : "Salvar"}</button>
-          <button type="button" className={aBtnGhost} disabled={busy} onClick={previa}>
-            <FileText className="h-4 w-4" /> Ver exemplo da OS
-          </button>
-          <button type="button" className={aBtnGhost} disabled={busy} onClick={() => { attachTo.current = null; fileRef.current?.click(); }}>
-            <Upload className="h-4 w-4" /> Enviar PDF de OS
-          </button>
           <button type="button" className={aBtnGhost} title="Limpar" onClick={() => setO(makeInitial())}><RotateCcw className="h-4 w-4" /> Limpar</button>
           <input ref={fileRef} type="file" accept="application/pdf" className="hidden"
             onChange={(e) => { const file = e.target.files?.[0]; if (file) enviarArquivo(file); }} />
