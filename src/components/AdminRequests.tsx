@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Check, X, UserCheck } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/app-client";
 import { aBtn, aBtnGhost, aChip, aLabel, aPanel } from "@/lib/admin-styles";
 
 type Req = { user_id: string; email: string; status: string; created_at: string };

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import modelo from "@/assets/os-modelo.jpg.asset.json";
 import { toast } from "sonner";
 import { Download, Upload, RotateCcw, Search, FileText, ExternalLink, Trash2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/app-client";
 import { aBtn, aBtnGhost, aChip, aInput as input, aLabel, aPanel } from "@/lib/admin-styles";
 
 const TIPOS = ["Violão", "Guitarra", "Baixo", "Cavaquinho", "Ukulele", "Outro"];

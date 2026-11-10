@@ -29,6 +29,13 @@
       "when": 1793741307693,
       "tag": "0003_service_orders_dados",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794271108962,
+      "tag": "0004_owner_profiles",
+      "breakpoints": true
     }
   ]
 }

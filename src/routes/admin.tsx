@@ -4,7 +4,11 @@ import { Toaster, toast } from "sonner";
 import {
   Package, FileText, UserCheck, Eye, EyeOff, Pencil, Trash2, Search, ImagePlus, LogOut, Store, Plus, X, Guitar,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/app-client";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { PasswordInput } from "@/components/PasswordInput";
+import { EMAIL_KEY, REMEMBER_KEY, saveLoginPreference } from "@/lib/auth-storage";
 import type { Session } from "@supabase/supabase-js";
 import { OSForm } from "@/components/OSForm";
 import { AdminRequests } from "@/components/AdminRequests";
@@ -40,9 +44,15 @@ function AdminPage() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
-    return () => data.subscription.unsubscribe();
+    let active = true;
+    const refresh = async () => {
+      const { data } = await supabase.auth.getUser();
+      const sessionResult = data.user ? await supabase.auth.getSession() : null;
+      if (active) { setSession(sessionResult?.data.session ?? null); setReady(true); }
+    };
+    void refresh();
+    window.addEventListener('garotinho-auth-changed', refresh);
+    return () => { active = false; window.removeEventListener('garotinho-auth-changed', refresh); };
   }, []);
 
   useEffect(() => {
@@ -95,34 +105,61 @@ function Loading() {
 }
 
 function Login() {
-  const [mode, setMode] = useState<"in" | "up">("in");
+  const [mode, setMode] = useState<"in" | "up" | "forgot">("in");
   const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [remember, setRemember] = useState(false);
   const [pw, setPw] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    setRemember(localStorage.getItem(REMEMBER_KEY) === 'true');
+    setEmail(localStorage.getItem(EMAIL_KEY) ?? '');
+  }, []);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setMsg("");
-    const { data, error } = mode === "in"
-      ? await supabase.auth.signInWithPassword({ email, password: pw })
-      : await supabase.auth.signUp({ email, password: pw, options: { emailRedirectTo: window.location.origin + "/admin" } });
-    setBusy(false);
-    if (error) setMsg(error.message);
-    else if (mode === "up" && !data.session) setMsg("Conta criada! Confirme pelo link enviado ao seu e-mail.");
+    try {
+      if (mode === 'forgot') {
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        setMsg(error ? 'Não foi possível enviar agora. Tente novamente em alguns minutos.' : 'Se este e-mail estiver cadastrado, você receberá um link para redefinir sua senha. Confira também o spam.');
+        return;
+      }
+      saveLoginPreference(remember, email, localStorage);
+      const { data, error } = mode === "in"
+        ? await supabase.auth.signInWithPassword({ email: email.trim(), password: pw })
+        : await supabase.auth.signUp({ email: email.trim(), password: pw, options: { emailRedirectTo: window.location.origin + "/admin", data: { display_name: name.trim() } } });
+      if (error) setMsg(mode === 'in' ? 'E-mail ou senha inválidos. Confira os dados e tente novamente.' : 'Não foi possível criar a conta. Confira os dados e tente novamente.');
+      else if (mode === "up" && !data.session) setMsg("Conta criada! Confirme pelo link enviado ao seu e-mail.");
+    } catch {
+      setMsg('Não foi possível conectar. Tente novamente.');
+    } finally { setBusy(false); }
   }
 
   return (
     <div className="px-4 py-16">
       <form onSubmit={submit} className={`mx-auto max-w-sm space-y-4 ${aPanel} ${aIn}`}>
         <span className="inline-block -rotate-3 bg-primary px-3 py-1 font-mono text-xs font-bold uppercase tracking-widest text-primary-foreground">Acesso restrito</span>
-        <h1 className="font-street text-4xl uppercase leading-none">{mode === "in" ? "Entrar" : "Criar conta"}</h1>
-        <input className={aInput} type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        <input className={aInput} type="password" placeholder="Senha" minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} required />
-        <button className={`${aBtn} w-full`} disabled={busy}>{busy ? "Aguarde..." : mode === "in" ? "Entrar" : "Criar conta"}</button>
-        {msg && <p className="text-sm text-muted-foreground">{msg}</p>}
-        <button type="button" onClick={() => setMode(mode === "in" ? "up" : "in")} className="w-full text-sm underline">
-          {mode === "in" ? "Primeiro acesso? Criar conta" : "Já tenho conta"}
-        </button>
+        <h1 className="font-street text-4xl uppercase leading-none">{mode === "in" ? "Entrar" : mode === 'forgot' ? 'Recuperar senha' : "Criar conta"}</h1>
+        {mode === 'up' && <input className={aInput} aria-label="Nome" autoComplete="name" placeholder="Nome" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} required />}
+        <input className={aInput} aria-label="E-mail" autoComplete="email" type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        {mode !== 'forgot' && <>
+          <PasswordInput aria-label="Senha" placeholder="Senha" autoComplete={mode === 'in' ? 'current-password' : 'new-password'} minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} required />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <Checkbox checked={remember} onCheckedChange={(checked) => setRemember(checked === true)} /> Lembrar de mim
+            </label>
+            {mode === 'in' && <Button type="button" variant="link" className="h-auto px-0" onClick={() => { setMode('forgot'); setMsg(''); setPw(''); }}>Esqueci minha senha</Button>}
+          </div>
+        </>}
+        <Button className={`${aBtn} h-auto w-full rounded-none`} disabled={busy}>{busy ? "Aguarde..." : mode === "in" ? "Entrar" : mode === 'forgot' ? 'Enviar link por e-mail' : "Criar conta"}</Button>
+        {msg && <p role="status" className="text-sm text-muted-foreground">{msg}</p>}
+        <Button type="button" variant="link" disabled={busy} onClick={() => { setMode(mode === "in" ? "up" : "in"); setMsg(''); setPw(''); }} className="h-auto w-full whitespace-normal text-sm underline">
+          {mode === "in" ? "Primeiro acesso? Criar conta" : "Voltar para entrar"}
+        </Button>
       </form>
     </div>
   );
@@ -134,6 +171,17 @@ type Stats = { visiveis: number; ocultos: number; os: number; pendentes: number 
 function AdminTabs({ email }: { email: string }) {
   const [tab, setTab] = useState<Tab>("produtos");
   const [stats, setStats] = useState<Stats | null>(null);
+  const [displayName, setDisplayName] = useState('');
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) return;
+      const profile = await supabase.from('profiles').select('display_name').eq('id', data.user.id).maybeSingle();
+      if (active) setDisplayName(profile.data?.display_name ?? '');
+    })();
+    return () => { active = false; };
+  }, []);
 
   const loadStats = useCallback(async () => {
     const [p, os, req] = await Promise.all([
@@ -151,7 +199,7 @@ function AdminTabs({ email }: { email: string }) {
   }, []);
   useEffect(() => { loadStats(); }, [loadStats]);
 
-  const nome = email.split("@")[0];
+  const nome = displayName || email.split("@")[0];
   const cards: { k: Tab; label: string; value: number | undefined; icon: typeof Package }[] = [
     { k: "produtos", label: "Na vitrine", value: stats?.visiveis, icon: Guitar },
     { k: "produtos", label: "Ocultos", value: stats?.ocultos, icon: EyeOff },
